@@ -155,19 +155,87 @@ export function Visualizer() {
 
     try {
       const clonedSvg = svgElement.cloneNode(true) as SVGElement;
+      
+      // Inject local CSS containing only safe rules (no cross-origin imports) to avoid taining the canvas
       const styleElement = document.createElement('style');
-      let cssText = '';
-      for (let i = 0; i < document.styleSheets.length; i++) {
-        const sheet = document.styleSheets[i];
-        try {
-          for (let j = 0; j < sheet.cssRules.length; j++) {
-            cssText += sheet.cssRules[j].cssText + '\n';
-          }
-        } catch (e) {
-          // Ignore cross-origin stylesheet errors
+      styleElement.textContent = `
+        .rd3t-link {
+          fill: none;
+          stroke: #cbd5e1 !important;
+          stroke-width: 2px !important;
+          stroke-dasharray: 6 6;
         }
-      }
-      styleElement.textContent = cssText;
+        .bg-emerald-50\\/90 { background-color: rgb(236, 253, 245); }
+        .border-emerald-200\\/80 { border-color: rgba(167, 243, 208, 0.8); }
+        .text-emerald-950 { color: #022c22; }
+        .bg-emerald-100\\/80 { background-color: rgba(209, 250, 229, 0.8); }
+        .text-emerald-800 { color: #065f46; }
+        
+        .bg-amber-50\\/90 { background-color: rgb(254, 243, 199); }
+        .border-amber-200\\/80 { border-color: rgba(253, 230, 138, 0.8); }
+        .text-amber-950 { color: #451a03; }
+        .bg-amber-100\\/80 { background-color: rgba(254, 243, 199, 0.8); }
+        .text-amber-800 { color: #92400e; }
+        
+        .bg-indigo-50\\/90 { background-color: rgb(238, 242, 255); }
+        .border-indigo-200\\/80 { border-color: rgba(199, 210, 254, 0.8); }
+        .text-indigo-950 { color: #030712; }
+        .bg-indigo-100\\/80 { background-color: rgba(224, 231, 255, 0.8); }
+        .text-indigo-800 { color: #3730a3; }
+        
+        .bg-rose-50\\/90 { background-color: rgb(255, 241, 242); }
+        .border-rose-200\\/80 { border-color: rgba(254, 205, 211, 0.8); }
+        .text-rose-950 { color: #4c0519; }
+        .bg-rose-100\\/80 { background-color: rgba(254, 226, 226, 0.8); }
+        .text-rose-800 { color: #991b1b; }
+        
+        .bg-purple-50\\/90 { background-color: rgb(250, 245, 255); }
+        .border-purple-200\\/80 { border-color: rgba(233, 213, 255, 0.8); }
+        .text-purple-950 { color: #3b0764; }
+        .bg-purple-100\\/80 { background-color: rgba(243, 232, 255, 0.8); }
+        .text-purple-800 { color: #6b21a8; }
+        
+        .bg-sky-50\\/90 { background-color: rgb(240, 253, 255); }
+        .border-sky-200\\/80 { border-color: rgba(186, 230, 253, 0.8); }
+        .text-sky-950 { color: #082f49; }
+        .bg-sky-100\\/80 { background-color: rgba(224, 242, 254, 0.8); }
+        .text-sky-800 { color: #075985; }
+        
+        .bg-slate-50\\/90 { background-color: rgb(248, 250, 252); }
+        .border-slate-200\\/80 { border-color: rgba(226, 232, 240, 0.8); }
+        .text-slate-950 { color: #020617; }
+        .bg-slate-100\\/80 { background-color: rgba(241, 245, 249, 0.8); }
+        .text-slate-800 { color: #1e293b; }
+        
+        .rounded-xl { border-radius: 12px; }
+        .border { border: 1px solid; }
+        .p-3\\.5 { padding: 14px; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .justify-between { justify-content: space-between; }
+        .h-full { height: 100%; }
+        .text-left { text-align: left; }
+        .items-center { align-items: center; }
+        .gap-2 { gap: 8px; }
+        .gap-1 { gap: 4px; }
+        .min-w-0 { min-width: 0; }
+        .flex-1 { flex: 1 1 0%; }
+        .text-\\[9px\\] { font-size: 9px; }
+        .text-xs { font-size: 12px; }
+        .text-lg { font-size: 18px; }
+        .font-bold { font-weight: 700; }
+        .font-semibold { font-weight: 600; }
+        .tracking-wider { letter-spacing: 0.05em; }
+        .uppercase { text-transform: uppercase; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .mt-1\\.5 { margin-top: 6px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .px-1\\.5 { padding-left: 6px; padding-right: 6px; }
+        .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
+        .font-mono { font-family: monospace; }
+        .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        * { font-family: sans-serif; box-sizing: border-box; }
+      `;
       clonedSvg.insertBefore(styleElement, clonedSvg.firstChild);
       clonedSvg.style.backgroundColor = '#ffffff';
 
