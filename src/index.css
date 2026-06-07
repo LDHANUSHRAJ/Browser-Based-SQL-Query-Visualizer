@@ -40,3 +40,24 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* react-d3-tree Link Customization */
+.rd3t-link {
+  fill: none;
+  stroke: #e2e8f0 !important;
+  stroke-width: 2px !important;
+  stroke-dasharray: 6 6;
+  animation: rd3t-dash 25s linear infinite;
+  transition: stroke 0.3s ease;
+}
+
+@keyframes rd3t-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.rd3t-node {
+  transition: transform 0.2s ease-out;
+}
+

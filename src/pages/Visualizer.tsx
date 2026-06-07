@@ -26,6 +26,102 @@ HAVING AVG(r.rating) > 3.5
 ORDER BY avg_rating DESC;`
 ];
 
+const getNodeStyle = (name: string, attributes?: any): {
+  bg: string;
+  border: string;
+  text: string;
+  badgeBg: string;
+  badgeText: string;
+  icon: string;
+  category: string;
+} => {
+  if (attributes?.type === 'table') {
+    return {
+      bg: 'bg-emerald-50/90 hover:bg-emerald-50',
+      border: 'border-emerald-200/80 shadow-emerald-100/30',
+      text: 'text-emerald-950',
+      badgeBg: 'bg-emerald-100/80',
+      badgeText: 'text-emerald-800',
+      icon: '🗂',
+      category: 'Table Ref'
+    };
+  }
+  const upperName = name.toUpperCase();
+  if (upperName.startsWith('SELECT')) {
+    return {
+      bg: 'bg-amber-50/90 hover:bg-amber-50',
+      border: 'border-amber-200/80 shadow-amber-100/30',
+      text: 'text-amber-950',
+      badgeBg: 'bg-amber-100/80',
+      badgeText: 'text-amber-800',
+      icon: '✦',
+      category: 'Projection'
+    };
+  }
+  if (upperName.includes('JOIN')) {
+    return {
+      bg: 'bg-indigo-50/90 hover:bg-indigo-50',
+      border: 'border-indigo-200/80 shadow-indigo-100/30',
+      text: 'text-indigo-950',
+      badgeBg: 'bg-indigo-100/80',
+      badgeText: 'text-indigo-800',
+      icon: '🔗',
+      category: 'Join'
+    };
+  }
+  if (
+    upperName.startsWith('WHERE') ||
+    upperName === 'AND' ||
+    upperName === 'OR' ||
+    upperName.includes('=') ||
+    upperName.includes('>') ||
+    upperName.includes('<') ||
+    upperName.includes('LIKE') ||
+    upperName.includes('BETWEEN')
+  ) {
+    return {
+      bg: 'bg-rose-50/90 hover:bg-rose-50',
+      border: 'border-rose-200/80 shadow-rose-100/30',
+      text: 'text-rose-950',
+      badgeBg: 'bg-rose-100/80',
+      badgeText: 'text-rose-800',
+      icon: '🔍',
+      category: 'Filter'
+    };
+  }
+  if (upperName.startsWith('GROUP BY') || upperName.startsWith('HAVING') || upperName.startsWith('ON:')) {
+    return {
+      bg: 'bg-purple-50/90 hover:bg-purple-50',
+      border: 'border-purple-200/80 shadow-purple-100/30',
+      text: 'text-purple-950',
+      badgeBg: 'bg-purple-100/80',
+      badgeText: 'text-purple-800',
+      icon: '📊',
+      category: 'Condition / Group'
+    };
+  }
+  if (upperName.startsWith('ORDER BY')) {
+    return {
+      bg: 'bg-sky-50/90 hover:bg-sky-50',
+      border: 'border-sky-200/80 shadow-sky-100/30',
+      text: 'text-sky-950',
+      badgeBg: 'bg-sky-100/80',
+      badgeText: 'text-sky-800',
+      icon: '↕',
+      category: 'Sort'
+    };
+  }
+  return {
+    bg: 'bg-slate-50/90 hover:bg-slate-50',
+    border: 'border-slate-200/80 shadow-slate-100/30',
+    text: 'text-slate-950',
+    badgeBg: 'bg-slate-100/80',
+    badgeText: 'text-slate-800',
+    icon: '⚙',
+    category: 'Operation'
+  };
+};
+
 export function Visualizer() {
   const [sql, setSql] = useState(SAMPLE_QUERIES[0]);
   const [ast, setAst] = useState<any>(null);
@@ -170,19 +266,49 @@ export function Visualizer() {
                     data={astToTreeData(ast)}
                     orientation="vertical"
                     pathFunc="step"
-                    nodeSize={{ x: 250, y: 100 }}
-                    renderCustomNodeElement={({ nodeDatum }) => (
-                      <g>
-                        <rect x="-80" y="-20" width="160" height="40" rx="8"
-                          fill="#ffffff" stroke="#e2e8f0" strokeWidth="2" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.05))"/>
-                        <text y="5" textAnchor="middle" fill="#334155"
-                          fontSize="13" fontFamily="ui-sans-serif, system-ui, sans-serif" fontWeight="500">
-                          {(nodeDatum.name as string).length > 22
-                            ? (nodeDatum.name as string).slice(0, 19) + '…'
-                            : nodeDatum.name as string}
-                        </text>
-                      </g>
-                    )}
+                    nodeSize={{ x: 260, y: 130 }}
+                    translate={{ x: 280, y: 60 }}
+                    renderCustomNodeElement={({ nodeDatum }) => {
+                      const style = getNodeStyle(nodeDatum.name, nodeDatum.attributes);
+                      return (
+                        <g>
+                          <foreignObject
+                            x="-110"
+                            y="-45"
+                            width="220"
+                            height="90"
+                            className="overflow-visible"
+                          >
+                            <div className={`p-3.5 rounded-xl border ${style.border} ${style.bg} shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-105 flex flex-col justify-between h-full text-left select-none`}>
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg leading-none">{style.icon}</span>
+                                <div className="flex flex-col min-w-0 flex-1">
+                                  <span className={`text-[9px] font-bold tracking-wider uppercase ${style.badgeText} opacity-80`}>
+                                    {style.category}
+                                  </span>
+                                  <span className={`text-xs font-semibold ${style.text} truncate`}>
+                                    {nodeDatum.name}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {nodeDatum.attributes && Object.keys(nodeDatum.attributes).length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {Object.entries(nodeDatum.attributes).map(([key, val]) => {
+                                    if (key === 'type') return null;
+                                    return (
+                                      <span key={key} className={`text-[8.5px] px-1.5 py-0.5 rounded font-mono ${style.badgeBg} ${style.badgeText} border border-black/5 max-w-full truncate`}>
+                                        {key}: {String(val)}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </foreignObject>
+                        </g>
+                      );
+                    }}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-400 font-medium">
