@@ -150,144 +150,41 @@ export function Visualizer() {
   };
 
   const exportTree = async (format: 'png' | 'jpeg' | 'pdf') => {
-    const svgElement = document.querySelector('.rd3t-svg') as SVGElement | null;
-    if (!svgElement) return;
+    const container = document.getElementById('tree-capture-container');
+    if (!container) return;
 
     try {
-      const clonedSvg = svgElement.cloneNode(true) as SVGElement;
-      
-      // Inject local CSS containing only safe rules (no cross-origin imports) to avoid taining the canvas
-      const styleElement = document.createElement('style');
-      styleElement.textContent = `
-        .rd3t-link {
-          fill: none;
-          stroke: #cbd5e1 !important;
-          stroke-width: 2px !important;
-          stroke-dasharray: 6 6;
-        }
-        .bg-emerald-50\\/90 { background-color: rgb(236, 253, 245); }
-        .border-emerald-200\\/80 { border-color: rgba(167, 243, 208, 0.8); }
-        .text-emerald-950 { color: #022c22; }
-        .bg-emerald-100\\/80 { background-color: rgba(209, 250, 229, 0.8); }
-        .text-emerald-800 { color: #065f46; }
-        
-        .bg-amber-50\\/90 { background-color: rgb(254, 243, 199); }
-        .border-amber-200\\/80 { border-color: rgba(253, 230, 138, 0.8); }
-        .text-amber-950 { color: #451a03; }
-        .bg-amber-100\\/80 { background-color: rgba(254, 243, 199, 0.8); }
-        .text-amber-800 { color: #92400e; }
-        
-        .bg-indigo-50\\/90 { background-color: rgb(238, 242, 255); }
-        .border-indigo-200\\/80 { border-color: rgba(199, 210, 254, 0.8); }
-        .text-indigo-950 { color: #030712; }
-        .bg-indigo-100\\/80 { background-color: rgba(224, 231, 255, 0.8); }
-        .text-indigo-800 { color: #3730a3; }
-        
-        .bg-rose-50\\/90 { background-color: rgb(255, 241, 242); }
-        .border-rose-200\\/80 { border-color: rgba(254, 205, 211, 0.8); }
-        .text-rose-950 { color: #4c0519; }
-        .bg-rose-100\\/80 { background-color: rgba(254, 226, 226, 0.8); }
-        .text-rose-800 { color: #991b1b; }
-        
-        .bg-purple-50\\/90 { background-color: rgb(250, 245, 255); }
-        .border-purple-200\\/80 { border-color: rgba(233, 213, 255, 0.8); }
-        .text-purple-950 { color: #3b0764; }
-        .bg-purple-100\\/80 { background-color: rgba(243, 232, 255, 0.8); }
-        .text-purple-800 { color: #6b21a8; }
-        
-        .bg-sky-50\\/90 { background-color: rgb(240, 253, 255); }
-        .border-sky-200\\/80 { border-color: rgba(186, 230, 253, 0.8); }
-        .text-sky-950 { color: #082f49; }
-        .bg-sky-100\\/80 { background-color: rgba(224, 242, 254, 0.8); }
-        .text-sky-800 { color: #075985; }
-        
-        .bg-slate-50\\/90 { background-color: rgb(248, 250, 252); }
-        .border-slate-200\\/80 { border-color: rgba(226, 232, 240, 0.8); }
-        .text-slate-950 { color: #020617; }
-        .bg-slate-100\\/80 { background-color: rgba(241, 245, 249, 0.8); }
-        .text-slate-800 { color: #1e293b; }
-        
-        .rounded-xl { border-radius: 12px; }
-        .border { border: 1px solid; }
-        .p-3\\.5 { padding: 14px; }
-        .flex { display: flex; }
-        .flex-col { flex-direction: column; }
-        .justify-between { justify-content: space-between; }
-        .h-full { height: 100%; }
-        .text-left { text-align: left; }
-        .items-center { align-items: center; }
-        .gap-2 { gap: 8px; }
-        .gap-1 { gap: 4px; }
-        .min-w-0 { min-width: 0; }
-        .flex-1 { flex: 1 1 0%; }
-        .text-\\[9px\\] { font-size: 9px; }
-        .text-xs { font-size: 12px; }
-        .text-lg { font-size: 18px; }
-        .font-bold { font-weight: 700; }
-        .font-semibold { font-weight: 600; }
-        .tracking-wider { letter-spacing: 0.05em; }
-        .uppercase { text-transform: uppercase; }
-        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .mt-1\\.5 { margin-top: 6px; }
-        .flex-wrap { flex-wrap: wrap; }
-        .px-1\\.5 { padding-left: 6px; padding-right: 6px; }
-        .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
-        .font-mono { font-family: monospace; }
-        .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        * { font-family: sans-serif; box-sizing: border-box; }
-      `;
-      clonedSvg.insertBefore(styleElement, clonedSvg.firstChild);
-      clonedSvg.style.backgroundColor = '#ffffff';
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(container, {
+        backgroundColor: '#faf9f7',
+        scale: 2, // 2x high-res
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
 
-      const serializer = new XMLSerializer();
-      const svgString = serializer.serializeToString(clonedSvg);
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const URL = window.URL || window.webkitURL || window;
-      const blobURL = URL.createObjectURL(svgBlob);
-
-      const img = new Image();
-      const rect = svgElement.getBoundingClientRect();
-      const width = rect.width || 800;
-      const height = rect.height || 600;
-      const scale = 2; // high definition scale
-
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = width * scale;
-        canvas.height = height * scale;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        if (format === 'pdf') {
-          import('jspdf').then(({ jsPDF }) => {
-            const pdf = new jsPDF({
-              orientation: width > height ? 'landscape' : 'portrait',
-              unit: 'px',
-              format: [width, height]
-            });
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
-            pdf.save('sql-parse-tree.pdf');
-            URL.revokeObjectURL(blobURL);
-          });
-        } else {
-          const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
-          const dataURL = canvas.toDataURL(mimeType, 0.95);
-          const a = document.createElement('a');
-          a.download = `sql-parse-tree.${format}`;
-          a.href = dataURL;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(blobURL);
-        }
-      };
-
-      img.src = blobURL;
+      if (format === 'pdf') {
+        const { jsPDF } = await import('jspdf');
+        const imgWidth = container.clientWidth;
+        const imgHeight = container.clientHeight;
+        const pdf = new jsPDF({
+          orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
+          unit: 'px',
+          format: [imgWidth, imgHeight]
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+        pdf.save('sql-parse-tree.pdf');
+      } else {
+        const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+        const dataURL = canvas.toDataURL(mimeType, 0.95);
+        const a = document.createElement('a');
+        a.download = `sql-parse-tree.${format}`;
+        a.href = dataURL;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     } catch (err) {
       console.error('Failed to export tree:', err);
     }
@@ -449,7 +346,7 @@ export function Visualizer() {
                 )}
 
                 {ast ? (
-                  <div className="flex-1 w-full relative min-h-0 bg-[#faf9f7] rounded-xl border border-gray-100 overflow-hidden">
+                  <div id="tree-capture-container" className="flex-1 w-full relative min-h-0 bg-[#faf9f7] rounded-xl border border-gray-100 overflow-hidden">
                     <Tree
                       data={astToTreeData(ast)}
                       orientation="vertical"
