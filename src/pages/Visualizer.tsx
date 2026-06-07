@@ -129,6 +129,7 @@ export function Visualizer() {
   const [indexes, setIndexes] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'tree' | 'plan' | 'indexes'>('plan');
+  const [isTreeFullScreen, setIsTreeFullScreen] = useState(false);
 
   const analyze = () => {
     try {
@@ -145,6 +146,82 @@ export function Visualizer() {
       setError(e.message);
       setAst(null);
       setPlan([]);
+    }
+  };
+
+  const exportTree = async (format: 'png' | 'jpeg' | 'pdf') => {
+    const svgElement = document.querySelector('.rd3t-svg') as SVGElement | null;
+    if (!svgElement) return;
+
+    try {
+      const clonedSvg = svgElement.cloneNode(true) as SVGElement;
+      const styleElement = document.createElement('style');
+      let cssText = '';
+      for (let i = 0; i < document.styleSheets.length; i++) {
+        const sheet = document.styleSheets[i];
+        try {
+          for (let j = 0; j < sheet.cssRules.length; j++) {
+            cssText += sheet.cssRules[j].cssText + '\n';
+          }
+        } catch (e) {
+          // Ignore cross-origin stylesheet errors
+        }
+      }
+      styleElement.textContent = cssText;
+      clonedSvg.insertBefore(styleElement, clonedSvg.firstChild);
+      clonedSvg.style.backgroundColor = '#ffffff';
+
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(clonedSvg);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const URL = window.URL || window.webkitURL || window;
+      const blobURL = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      const rect = svgElement.getBoundingClientRect();
+      const width = rect.width || 800;
+      const height = rect.height || 600;
+      const scale = 2; // high definition scale
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        if (format === 'pdf') {
+          import('jspdf').then(({ jsPDF }) => {
+            const pdf = new jsPDF({
+              orientation: width > height ? 'landscape' : 'portrait',
+              unit: 'px',
+              format: [width, height]
+            });
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+            pdf.save('sql-parse-tree.pdf');
+            URL.revokeObjectURL(blobURL);
+          });
+        } else {
+          const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+          const dataURL = canvas.toDataURL(mimeType, 0.95);
+          const a = document.createElement('a');
+          a.download = `sql-parse-tree.${format}`;
+          a.href = dataURL;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobURL);
+        }
+      };
+
+      img.src = blobURL;
+    } catch (err) {
+      console.error('Failed to export tree:', err);
     }
   };
 
@@ -260,56 +337,100 @@ export function Visualizer() {
             )}
 
             {activeTab === 'tree' && (
-              <div className="h-full w-full min-h-[600px] bg-white rounded-xl border border-gray-100 shadow-sm" style={{ height: '600px' }}>
+              <div className={isTreeFullScreen 
+                ? "fixed inset-0 z-50 bg-white flex flex-col p-6" 
+                : "h-full w-full min-h-[600px] bg-white rounded-xl border border-gray-100 shadow-sm relative flex flex-col"}
+                style={isTreeFullScreen ? {} : { height: '600px' }}>
+                
+                {ast && (
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-3 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-800">🌳 AST Parse Tree</span>
+                      {isTreeFullScreen && (
+                        <span className="text-[10px] px-2 py-0.5 bg-[#fdfbf7] text-[#da7b5b] border border-[#f4f2ee] rounded-full font-semibold">Full Screen</span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      {/* Download Options */}
+                      <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-0.5 shadow-sm">
+                        <span className="text-[10px] text-gray-400 px-2 font-bold uppercase tracking-wider">Download</span>
+                        <button onClick={() => exportTree('png')} className="text-xs px-2.5 py-1 hover:bg-white text-gray-600 hover:text-gray-900 rounded-md transition-all font-semibold cursor-pointer">PNG</button>
+                        <button onClick={() => exportTree('jpeg')} className="text-xs px-2.5 py-1 hover:bg-white text-gray-600 hover:text-gray-900 rounded-md transition-all font-semibold cursor-pointer">JPG</button>
+                        <button onClick={() => exportTree('pdf')} className="text-xs px-2.5 py-1 hover:bg-white text-gray-600 hover:text-gray-900 rounded-md transition-all font-semibold cursor-pointer">PDF</button>
+                      </div>
+
+                      {/* Fullscreen Toggle */}
+                      <button onClick={() => setIsTreeFullScreen(!isTreeFullScreen)}
+                        className="px-3 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors cursor-pointer shadow-sm flex items-center gap-1.5 text-xs font-semibold"
+                        title={isTreeFullScreen ? "Exit Full Screen" : "Full Screen"}>
+                        {isTreeFullScreen ? (
+                          <>
+                            <span>Exit</span>
+                            <span className="text-sm leading-none">↙</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Expand</span>
+                            <span className="text-sm leading-none">↗</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {ast ? (
-                  <Tree
-                    data={astToTreeData(ast)}
-                    orientation="vertical"
-                    pathFunc="step"
-                    nodeSize={{ x: 260, y: 130 }}
-                    translate={{ x: 280, y: 60 }}
-                    renderCustomNodeElement={({ nodeDatum }) => {
-                      const style = getNodeStyle(nodeDatum.name, nodeDatum.attributes);
-                      return (
-                        <g>
-                          <foreignObject
-                            x="-110"
-                            y="-45"
-                            width="220"
-                            height="90"
-                            className="overflow-visible"
-                          >
-                            <div className={`p-3.5 rounded-xl border ${style.border} ${style.bg} shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-105 flex flex-col justify-between h-full text-left select-none`}>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg leading-none">{style.icon}</span>
-                                <div className="flex flex-col min-w-0 flex-1">
-                                  <span className={`text-[9px] font-bold tracking-wider uppercase ${style.badgeText} opacity-80`}>
-                                    {style.category}
-                                  </span>
-                                  <span className={`text-xs font-semibold ${style.text} truncate`}>
-                                    {nodeDatum.name}
-                                  </span>
+                  <div className="flex-1 w-full relative min-h-0 bg-[#faf9f7] rounded-xl border border-gray-100 overflow-hidden">
+                    <Tree
+                      data={astToTreeData(ast)}
+                      orientation="vertical"
+                      pathFunc="step"
+                      nodeSize={{ x: 260, y: 130 }}
+                      translate={isTreeFullScreen ? { x: window.innerWidth / 2, y: 80 } : { x: 280, y: 60 }}
+                      renderCustomNodeElement={({ nodeDatum }) => {
+                        const style = getNodeStyle(nodeDatum.name, nodeDatum.attributes);
+                        return (
+                          <g>
+                            <foreignObject
+                              x="-110"
+                              y="-45"
+                              width="220"
+                              height="90"
+                              className="overflow-visible"
+                            >
+                              <div className={`p-3.5 rounded-xl border ${style.border} ${style.bg} shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-105 flex flex-col justify-between h-full text-left select-none`}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg leading-none">{style.icon}</span>
+                                  <div className="flex flex-col min-w-0 flex-1">
+                                    <span className={`text-[9px] font-bold tracking-wider uppercase ${style.badgeText} opacity-80`}>
+                                      {style.category}
+                                    </span>
+                                    <span className={`text-xs font-semibold ${style.text} truncate`}>
+                                      {nodeDatum.name}
+                                    </span>
+                                  </div>
                                 </div>
+                                
+                                {nodeDatum.attributes && Object.keys(nodeDatum.attributes).length > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {Object.entries(nodeDatum.attributes).map(([key, val]) => {
+                                      if (key === 'type') return null;
+                                      return (
+                                        <span key={key} className={`text-[8.5px] px-1.5 py-0.5 rounded font-mono ${style.badgeBg} ${style.badgeText} border border-black/5 max-w-full truncate`}>
+                                          {key}: {String(val)}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
-                              
-                              {nodeDatum.attributes && Object.keys(nodeDatum.attributes).length > 0 && (
-                                <div className="mt-1.5 flex flex-wrap gap-1">
-                                  {Object.entries(nodeDatum.attributes).map(([key, val]) => {
-                                    if (key === 'type') return null;
-                                    return (
-                                      <span key={key} className={`text-[8.5px] px-1.5 py-0.5 rounded font-mono ${style.badgeBg} ${style.badgeText} border border-black/5 max-w-full truncate`}>
-                                        {key}: {String(val)}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </foreignObject>
-                        </g>
-                      );
-                    }}
-                  />
+                            </foreignObject>
+                          </g>
+                        );
+                      }}
+                    />
+                  </div>
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-400 font-medium">
                     Click Analyze to generate parse tree
