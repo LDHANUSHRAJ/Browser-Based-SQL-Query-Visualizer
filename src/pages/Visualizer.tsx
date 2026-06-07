@@ -149,31 +149,180 @@ export function Visualizer() {
     }
   };
 
+  const getNodeColor = (name: string, attributes?: any): { bg: string; border: string; text: string; category: string; icon: string } => {
+    if (attributes?.type === 'table') return { bg: '#ecfdf5', border: '#6ee7b7', text: '#022c22', category: 'Table', icon: '🗂' };
+    const n = name.toUpperCase();
+    if (n.startsWith('SELECT')) return { bg: '#fef3c7', border: '#fcd34d', text: '#451a03', category: 'Projection', icon: '✦' };
+    if (n.includes('JOIN')) return { bg: '#eef2ff', border: '#a5b4fc', text: '#1e1b4b', category: 'Join', icon: '🔗' };
+    if (n.startsWith('WHERE') || n === 'AND' || n === 'OR' || n.includes('=') || n.includes('>') || n.includes('<') || n.includes('LIKE') || n.includes('BETWEEN'))
+      return { bg: '#fff1f2', border: '#fca5a5', text: '#4c0519', category: 'Filter', icon: '🔍' };
+    if (n.startsWith('GROUP BY') || n.startsWith('HAVING') || n.startsWith('ON:'))
+      return { bg: '#faf5ff', border: '#d8b4fe', text: '#3b0764', category: 'Group', icon: '📊' };
+    if (n.startsWith('ORDER BY')) return { bg: '#f0f9ff', border: '#7dd3fc', text: '#082f49', category: 'Sort', icon: '↕' };
+    if (n.startsWith('LIMIT')) return { bg: '#f0fdf4', border: '#86efac', text: '#052e16', category: 'Limit', icon: '⊘' };
+    return { bg: '#f8fafc', border: '#cbd5e1', text: '#020617', category: 'Op', icon: '⚙' };
+  };
+
+  // Compute tree layout positions from data
+  const layoutTree = (node: any, depth = 0, siblingIndex = 0, siblingCount = 1, xOffset = 0): any[] => {
+    const NODE_W = 200;
+    const NODE_H = 50;
+    const V_GAP = 90;
+    const H_GAP = 30;
+
+    const children = node.children || [];
+    const childCount = children.length;
+
+    // Recursively lay out children first to determine subtree widths
+    let childLayouts: any[][] = [];
+    let totalChildWidth = 0;
+
+    for (let i = 0; i < childCount; i++) {
+      const childLayout = layoutTree(children[i], depth + 1, i, childCount, 0);
+      childLayouts.push(childLayout);
+      // Compute subtree width
+      let minX = Infinity, maxX = -Infinity;
+      for (const item of childLayout) {
+        minX = Math.min(minX, item.x);
+        maxX = Math.max(maxX, item.x + NODE_W);
+      }
+      const subWidth = maxX - minX;
+      totalChildWidth += subWidth;
+    }
+    totalChildWidth += Math.max(0, childCount - 1) * H_GAP;
+
+    // Position this node
+    const myX = xOffset;
+    const myY = depth * (NODE_H + V_GAP);
+    const result: any[] = [{ name: node.name, attributes: node.attributes, x: myX, y: myY, w: NODE_W, h: NODE_H }];
+
+    // Position children centered below this node
+    let childStartX = myX + NODE_W / 2 - totalChildWidth / 2;
+    for (let i = 0; i < childCount; i++) {
+      const childLayout = childLayouts[i];
+      let minCX = Infinity, maxCX = -Infinity;
+      for (const item of childLayout) {
+        minCX = Math.min(minCX, item.x);
+        maxCX = Math.max(maxCX, item.x + NODE_W);
+      }
+      const subWidth = maxCX - minCX;
+      const shiftX = childStartX - minCX;
+
+      for (const item of childLayout) {
+        result.push({ ...item, x: item.x + shiftX, parentX: myX + NODE_W / 2, parentY: myY + NODE_H });
+      }
+      childStartX += subWidth + H_GAP;
+    }
+
+    return result;
+  };
+
   const exportTree = async (format: 'png' | 'jpeg' | 'pdf') => {
-    const container = document.getElementById('tree-capture-container');
-    if (!container) return;
+    if (!ast) return;
 
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(container, {
-        backgroundColor: '#faf9f7',
-        scale: 2, // 2x high-res
-        useCORS: true,
-        allowTaint: true,
-        logging: false
-      });
+      const treeData = astToTreeData(ast);
+      const nodes = layoutTree(treeData);
 
+      // Normalize positions so min x/y are at padding
+      const PAD = 40;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        minX = Math.min(minX, n.x);
+        minY = Math.min(minY, n.y);
+        maxX = Math.max(maxX, n.x + n.w);
+        maxY = Math.max(maxY, n.y + n.h);
+      }
+      for (const n of nodes) {
+        n.x -= minX - PAD;
+        n.y -= minY - PAD;
+        if (n.parentX !== undefined) n.parentX -= minX - PAD;
+        if (n.parentY !== undefined) n.parentY -= minY - PAD;
+      }
+      const canvasW = (maxX - minX) + PAD * 2;
+      const canvasH = (maxY - minY) + PAD * 2;
+
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasW * scale;
+      canvas.height = canvasH * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+
+      // Background
+      ctx.fillStyle = '#faf9f7';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+
+      // Draw edges first
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      for (const n of nodes) {
+        if (n.parentX !== undefined && n.parentY !== undefined) {
+          ctx.beginPath();
+          ctx.moveTo(n.parentX, n.parentY);
+          ctx.lineTo(n.x + n.w / 2, n.y);
+          ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+
+      // Draw nodes
+      for (const n of nodes) {
+        const colors = getNodeColor(n.name, n.attributes);
+
+        // Shadow
+        ctx.shadowColor = 'rgba(0,0,0,0.08)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 3;
+
+        // Node background
+        ctx.fillStyle = colors.bg;
+        ctx.beginPath();
+        ctx.roundRect(n.x, n.y, n.w, n.h, 10);
+        ctx.fill();
+
+        // Reset shadow for border
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+
+        // Border
+        ctx.strokeStyle = colors.border;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(n.x, n.y, n.w, n.h, 10);
+        ctx.stroke();
+
+        // Category label
+        ctx.fillStyle = colors.border;
+        ctx.font = 'bold 8px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(colors.category.toUpperCase(), n.x + 12, n.y + 16);
+
+        // Node name (truncated)
+        ctx.fillStyle = colors.text;
+        ctx.font = '600 12px sans-serif';
+        const displayName = n.name.length > 28 ? n.name.slice(0, 25) + '…' : n.name;
+        ctx.fillText(displayName, n.x + 12, n.y + 34);
+
+        // Icon
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(colors.icon, n.x + n.w - 10, n.y + 30);
+        ctx.textAlign = 'left';
+      }
+
+      // Export
       if (format === 'pdf') {
         const { jsPDF } = await import('jspdf');
-        const imgWidth = container.clientWidth;
-        const imgHeight = container.clientHeight;
         const pdf = new jsPDF({
-          orientation: imgWidth > imgHeight ? 'landscape' : 'portrait',
+          orientation: canvasW > canvasH ? 'landscape' : 'portrait',
           unit: 'px',
-          format: [imgWidth, imgHeight]
+          format: [canvasW, canvasH]
         });
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvasW, canvasH);
         pdf.save('sql-parse-tree.pdf');
       } else {
         const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
@@ -187,6 +336,7 @@ export function Visualizer() {
       }
     } catch (err) {
       console.error('Failed to export tree:', err);
+      alert('Export failed: ' + (err as Error).message);
     }
   };
 
